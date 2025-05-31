@@ -6,10 +6,10 @@ interface NewOrderProps {
   onClose: () => void;
   selectedAddress: string;
   position: { lat: number; lng: number };
-
+  onSave: (newOrder: any) => void;
 }
 
-export const NewOrder: React.FC<NewOrderProps> = ({ isOpen, onClose, selectedAddress, position }) => {
+export const NewOrder: React.FC<NewOrderProps> = ({ isOpen, onClose, selectedAddress, position, onSave }) => {
   const [clientName, setClientName] = useState('');
   const [isPaid, setIsPaid] = useState(false);
   const [amount, setAmount] = useState('');
@@ -17,8 +17,16 @@ export const NewOrder: React.FC<NewOrderProps> = ({ isOpen, onClose, selectedAdd
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    // Lógica para cadastrar o novo pedido
-    console.log({ clientName, isPaid, amount, selectedAddress });
+    const newOrder = {
+      id: Date.now(), // Gerar um ID único
+      client: clientName,
+      driver: 'Aguardando',
+      status: 'Pendente',
+      eta: 'Aguardando',
+      location: [position.lng, position.lat],
+      color: '#FFD700', // Cor para novos pedidos
+    };
+    onSave(newOrder);
     onClose();
   };
 

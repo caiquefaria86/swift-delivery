@@ -12,12 +12,14 @@ interface Delivery {
 }
 
 interface BottomPanelProps {
+  isExpanded: boolean;
+  setIsExpanded: (expanded: boolean) => void;
   deliveries: Delivery[];
   selectedDriver: string | null;
+  isNewOrderVisible: boolean;
 }
 
-const BottomPanel = ({ deliveries, selectedDriver }: BottomPanelProps) => {
-  const [isExpanded, setIsExpanded] = useState(true);
+const BottomPanel = ({ isExpanded, setIsExpanded, deliveries, selectedDriver, isNewOrderVisible }: BottomPanelProps) => {
 
   const filteredDeliveries = selectedDriver
     ? deliveries.filter(d => d.driver === selectedDriver)
@@ -47,7 +49,12 @@ const BottomPanel = ({ deliveries, selectedDriver }: BottomPanelProps) => {
           </div>
           <button
             onClick={() => setIsExpanded(!isExpanded)}
-            className="p-1 hover:bg-gray-100 rounded-full transition-colors"
+            className={cn(
+              "p-1 rounded-full transition-colors",
+              isExpanded ? "hover:bg-gray-100" : "",
+              isNewOrderVisible && !isExpanded && "opacity-50 cursor-not-allowed"
+            )}
+            disabled={isNewOrderVisible && !isExpanded}
           >
             {isExpanded ? (
               <ChevronDown className="h-5 w-5 text-gray-600" />

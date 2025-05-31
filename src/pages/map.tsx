@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Card } from "@/components/ui/card";
 import { Users } from "lucide-react";
 import { useDelivery } from '@/contexts/DeliveryContext';
@@ -18,12 +18,11 @@ const DeliveryMap = () => {
   const deliveryMarkersRef = useRef<any[]>([]);
   const storeMarkerRef = useRef<any>(null);
 
-  const storeLocation = [
-    {id: 0, driver:'Loja', status:'Ponto Saida', eta: '0 min', location: [-49.38726407097774, -20.807881179340534], color: '#45B7D1' },
-  ];
-
-  // Mock delivery data com coordenadas no formato correto [longitude, latitude]
-  const activeDeliveries = [
+  const [showNewOrder, setShowNewOrder] = useState(false);
+  const [selectedAddress, setSelectedAddress] = useState('');
+  const [selectedPosition, setSelectedPosition] = useState<{ lat: number; lng: number }>({ lat: 0, lng: 0 });
+  const [isBottomPanelExpanded, setIsBottomPanelExpanded] = useState(true);
+  const [activeDeliveries, setActiveDeliveries] = useState([
     { id: 1, client:"Leandro", driver: "Alex Chen", status: "Em Transito", eta: "5 min", location: [-49.410278488437065, -20.7933523086532], color: '#FF6B6B' },
     { id: 2, client:"Mauro", driver: "Alex Chen", status: "Em Rota", eta: "10 min", location: [-49.407675040202356, -20.77037424404696], color: '#4ECDC4' },
     { id: 3, client:"Oruam", driver: "Alex Chen", status: "Em Rota", eta: "18 min", location: [-49.388828, -20.788155], color: '#45B7D1' },
@@ -32,7 +31,19 @@ const DeliveryMap = () => {
     { id: 7, client:"Gertrudes", driver: "Sarah Kim", status: "Em Rota", eta: "25 min", location: [-49.35233594139471, -20.83405322301398], color: '#ff0000' },
     { id: 6, client:"Marinalva", driver: "Sarah Kim", status: "Em Rota", eta: "25 min", location: [-49.37525568020509, -20.821538909299814], color: '#ff19a5' },
     { id: 8, client:"Josilene", driver: "Mike Johnson", status: "Em Rota", eta: "25 min", location: [-49.414923847625154, -20.832798615225524], color: '#ff19a5' },
+  ]);
+
+  const storeLocation = [
+    {id: 0, driver:'Loja', status:'Ponto Saida', eta: '0 min', location: [-49.38726407097774, -20.807881179340534], color: '#45B7D1' },
   ];
+
+  const handleSaveNewOrder = (newOrder: any) => {
+    setActiveDeliveries((prevDeliveries) => [...prevDeliveries, newOrder]);
+    setIsBottomPanelExpanded(true);
+    console.log(activeDeliveries);
+    customMarkerRef.current.remove();
+    updateMapContent();
+  };
 
   const createRoute = async (start: number[], end: number[], color: string, routeId: string) => {
     if (!mapboxToken) return;
@@ -320,12 +331,17 @@ const DeliveryMap = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  useEffect(() => {
+    updateMapContent();
+  }, [handleSaveNewOrder, activeDeliveries]);
+
   // UseEffect para quando o driver selecionado muda
   useEffect(() => {
     if (map.current && map.current.isStyleLoaded()) {
       updateMapContent();
     }
   }, [selectedDriver]);
+
 
   // UseEffect para o marcador customizado
   useEffect(() => {
@@ -406,6 +422,19 @@ const DeliveryMap = () => {
     };
   }, [setAddCustomMarker]);
 
+  const handleAddressSelect = (address: string, position: { lat: number; lng: number }) => {
+    setSelectedAddress(address);
+    setSelectedPosition(position);
+    setShowNewOrder(true);
+    setIsBottomPanelExpanded(false);
+  };
+
+  const handleCloseNewOrder = () => {
+    setShowNewOrder(false);
+    setSelectedAddress('');
+    setIsBottomPanelExpanded(true);
+  };
+
   return (
     <div className="h-full relative">
       {/* Map Container */}
@@ -414,6 +443,7 @@ const DeliveryMap = () => {
       <AddressBar
         isVisible={isAddressBarVisible}
         onClose={() => setAddressBarVisible(false)}
+        onAddressSelect={handleAddressSelect}
       />
       {/* Overlay Controls */}
       <div className="absolute top-4 left-4 right-4 flex justify-between items-start z-10">
@@ -450,10 +480,22 @@ const DeliveryMap = () => {
           </div>
         </Card>
       </div>
-      <BottomPanel
-        deliveries={activeDeliveries}
-        selectedDriver={selectedDriver}
-      />
+      <BottomPanel 
+          deliveries={activeDeliveries}
+          selectedDriver={selectedDriver}
+          isExpanded={isBottomPanelExpanded}
+          setIsExpanded={setIsBottomPanelExpanded}
+          isNewOrderVisible={showNewOrder}
+        />
+      {showNewOrder && (
+        <NewOrder 
+          isOpen={showNewOrder} 
+          onClose={handleCloseNewOrder}
+          selectedAddress={selectedAddress}
+          position={selectedPosition}
+          onSave={handleSaveNewOrder}
+        />
+      )}
     </div>
   );
 };
