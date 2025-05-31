@@ -34,7 +34,7 @@ const DeliverySidebar = ({ isOpen, onToggle }: DeliverySidebarProps) => {
     { id: 'Rotas', label: 'Rotas', icon: MapPin },
     { id: 'Entregadores', label: 'Entregadores', icon: Users },
     { id: 'Pedidos', label: 'Pedidos', icon: Package },
-    { id: 'Alertas', label: 'Alertas', icon: Bell, badge: 3 }
+    { id: 'Alertas', label: 'Alertas', icon: Bell, badge: 1 }
   ];
 
   if (!isOpen) {
@@ -58,7 +58,7 @@ const DeliverySidebar = ({ isOpen, onToggle }: DeliverySidebarProps) => {
           >
             <item.icon className="h-4 w-4" />
             {item.badge && (
-              <Badge className="absolute -top-1 -right-1 h-4 w-4 p-0 text-xs bg-delivery-orange">
+              <Badge className="absolute -top-1 -right-2 h-4 w-4 p-1 text-xs bg-delivery-orange ">
                 {item.badge}
               </Badge>
             )}

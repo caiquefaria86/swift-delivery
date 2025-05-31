@@ -6,15 +6,15 @@ import ReactDOMServer from 'react-dom/server';
 import MapMarkerPopup from '@/components/map/MapMarkerPopup';
 import BottomPanel from '@/components/map/BottomPanel';
 import AddressBar from '@/components/map/AddressBar';
+import { NewOrder } from '@/components/map/NewOrder';
 
 const DeliveryMap = () => {
-  const { selectedDriver, isAddressBarVisible, setAddressBarVisible, addCustomMarker, setAddCustomMarker } = useDelivery();
+  const { selectedDriver, isAddressBarVisible, setAddressBarVisible, setAddCustomMarker } = useDelivery();
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<any>(null);
   const mapboxglRef = useRef<any>(null);
   const mapboxToken = process.env.NEXT_PUBLIC_MAPBOX_KEY;
   const customMarkerRef = useRef<any>(null);
-  // Novo ref para armazenar todos os marcadores de entrega
   const deliveryMarkersRef = useRef<any[]>([]);
   const storeMarkerRef = useRef<any>(null);
 
@@ -347,12 +347,12 @@ const DeliveryMap = () => {
       const el = document.createElement('div');
       el.className = 'delivery-marker custom-marker'; // Adiciona classe para identificar
       el.innerHTML = `
-        <div class="w-8 h-8 rounded-full border-2 border-white shadow-lg flex items-center justify-center animate-pulse-delivery" 
-             style="background-color: #FF9800">
-          <svg class="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20">
-            <path d="M8 16.5a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0zM15 16.5a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0z"/>
-            <path d="M3 4a1 1 0 00-1 1v10a1 1 0 001 1h1.05a2.5 2.5 0 014.9 0H10a1 1 0 001-1V5a1 1 0 00-1-1H3zM14 7a1 1 0 00-1 1v6.05A2.5 2.5 0 0115.95 16H17a1 1 0 001-1V8a1 1 0 00-1-1h-3z"/>
-          </svg>
+        <div class="w-12 h-12 rounded-full flex items-center justify-center animate-pulse-delivery">
+          <svg version="1.1" id="Icons" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" 
+          viewBox="0 0 32 32" xml:space="preserve">
+          <path fill="#00c400" d="M16,3C10.5,3,6,7.5,6,13c0,8.4,9,15.5,9.4,15.8c0.2,0.1,0.4,0.2,0.6,0.2s0.4-0.1,0.6-0.2C17,28.5,26,21.4,26,13
+            C26,7.5,21.5,3,16,3z M16,17c-2.2,0-4-1.8-4-4s1.8-4,4-4s4,1.8,4,4S18.2,17,16,17z"/>
+        </svg>
         </div>
       `;
 
@@ -389,8 +389,8 @@ const DeliveryMap = () => {
 
       // Opcional: mover o mapa para mostrar o novo marcador
       map.current.flyTo({
-        center: [location.lng, location.lat],
-        zoom: 15,
+        center: [location.lng + 0.0025, location.lat - 0.0013],
+        zoom: 16,
         duration: 1000
       });
     };

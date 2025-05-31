@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import GeocodingService from '../../services/GeocodingService';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useDelivery } from '../../contexts/DeliveryContext';
+import { NewOrder } from './NewOrder';
 
 interface AddressBarProps {
   isVisible: boolean;
@@ -24,6 +25,10 @@ const AddressBar: React.FC<AddressBarProps> = ({ isVisible, onClose }) => {
   const [suggestions, setSuggestions] = useState<AddressSuggestion[]>([]);
   const [loading, setLoading] = useState(false);
   const geocodingService = new GeocodingService(process.env.NEXT_PUBLIC_GOOGLE_KEY || '');
+
+  const [showNewOrder, setShowNewOrder] = useState(false);
+  const [selectedAddress, setSelectedAddress] = useState('');
+  const [selectedPosition, setSelectedPosition] = useState<{ lat: number; lng: number }>({ lat: 0, lng: 0 });
   
   // Pega a função do contexto
   const { addCustomMarker } = useDelivery();
@@ -45,7 +50,7 @@ const AddressBar: React.FC<AddressBarProps> = ({ isVisible, onClose }) => {
         const results = await geocodingService.geocodeAddress(value);
         setSuggestions(results);
       } catch (error) {
-        console.error('Erro ao buscar endereços:', error);
+        // console.error('Erro ao buscar endereços:', error);
         setSuggestions([]);
       } finally {
         setLoading(false);
@@ -54,30 +59,35 @@ const AddressBar: React.FC<AddressBarProps> = ({ isVisible, onClose }) => {
       setSuggestions([]);
     }
   };
-  
-  const handleSelectSuggestion = (suggestion: AddressSuggestion) => {
-    console.log('Sugestão selecionada:', suggestion);
-    
+
+  const handleSelectSuggestion = (suggestion: AddressSuggestion) => {    
     setAddress(suggestion.formatted_address);
+    setSelectedAddress(suggestion.formatted_address);
     setSuggestions([]);
-    
+    setSelectedPosition(suggestion.geometry.location);
     // Chama a função do contexto para adicionar o marcador
     if (addCustomMarker) {
-      console.log('Chamando addCustomMarker com:', suggestion.geometry.location);
       addCustomMarker(suggestion.geometry.location);
-      
-      // Fecha a barra de endereço após selecionar
+
+      // Fecha a barra de endereço e abre o formulário de novo pedido
       setTimeout(() => {
         onClose();
+        setShowNewOrder(true);
       }, 500);
     } else {
       console.error('addCustomMarker não está disponível no contexto');
     }
   };
 
+  const handleCloseNewOrder = () => {
+    setShowNewOrder(false);
+    setSelectedAddress('');
+  };
+
   return (
-    <AnimatePresence>
-      {isVisible && (
+    <>
+      <AnimatePresence>
+        {isVisible && (
         <motion.div 
           className="address-bar-container fixed top-0 left-0 right-0 z-50 flex justify-center"
           initial={{ y: -100, opacity: 0 }}
@@ -143,6 +153,16 @@ const AddressBar: React.FC<AddressBarProps> = ({ isVisible, onClose }) => {
         </motion.div>
       )}
     </AnimatePresence>
+    
+    {showNewOrder && (
+      <NewOrder 
+        isOpen={showNewOrder} 
+        onClose={handleCloseNewOrder}
+        selectedAddress={selectedAddress}
+        position={selectedPosition}
+      />
+    )}
+    </>
   );
 };
 
