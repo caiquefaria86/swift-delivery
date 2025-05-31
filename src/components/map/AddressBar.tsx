@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import GeocodingService from '../services/GeocodingService';
+import GeocodingService from '../../services/GeocodingService';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useDelivery } from '../../contexts/DeliveryContext';
 
 interface AddressBarProps {
   isVisible: boolean;
@@ -23,6 +24,9 @@ const AddressBar: React.FC<AddressBarProps> = ({ isVisible, onClose }) => {
   const [suggestions, setSuggestions] = useState<AddressSuggestion[]>([]);
   const [loading, setLoading] = useState(false);
   const geocodingService = new GeocodingService(process.env.NEXT_PUBLIC_GOOGLE_KEY || '');
+  
+  // Pega a função do contexto
+  const { addCustomMarker } = useDelivery();
 
   useEffect(() => {
     if (!isVisible) {
@@ -41,7 +45,7 @@ const AddressBar: React.FC<AddressBarProps> = ({ isVisible, onClose }) => {
         const results = await geocodingService.geocodeAddress(value);
         setSuggestions(results);
       } catch (error) {
-        console.error('Erro ao buscar sugestões:', error);
+        console.error('Erro ao buscar endereços:', error);
         setSuggestions([]);
       } finally {
         setLoading(false);
@@ -50,12 +54,25 @@ const AddressBar: React.FC<AddressBarProps> = ({ isVisible, onClose }) => {
       setSuggestions([]);
     }
   };
-
+  
   const handleSelectSuggestion = (suggestion: AddressSuggestion) => {
+    console.log('Sugestão selecionada:', suggestion);
+    
     setAddress(suggestion.formatted_address);
     setSuggestions([]);
-    // Aqui você pode adicionar lógica para salvar a localização selecionada
-    console.log('Localização selecionada:', suggestion.geometry.location);
+    
+    // Chama a função do contexto para adicionar o marcador
+    if (addCustomMarker) {
+      console.log('Chamando addCustomMarker com:', suggestion.geometry.location);
+      addCustomMarker(suggestion.geometry.location);
+      
+      // Fecha a barra de endereço após selecionar
+      setTimeout(() => {
+        onClose();
+      }, 500);
+    } else {
+      console.error('addCustomMarker não está disponível no contexto');
+    }
   };
 
   return (

@@ -5,12 +5,18 @@ import { useDelivery } from '@/contexts/DeliveryContext';
 import ReactDOMServer from 'react-dom/server';
 import MapMarkerPopup from '@/components/map/MapMarkerPopup';
 import BottomPanel from '@/components/map/BottomPanel';
+import AddressBar from '@/components/map/AddressBar';
 
 const DeliveryMap = () => {
-  const { selectedDriver } = useDelivery();
+  const { selectedDriver, isAddressBarVisible, setAddressBarVisible, addCustomMarker, setAddCustomMarker } = useDelivery();
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<any>(null);
+  const mapboxglRef = useRef<any>(null);
   const mapboxToken = process.env.NEXT_PUBLIC_MAPBOX_KEY;
+  const customMarkerRef = useRef<any>(null);
+  // Novo ref para armazenar todos os marcadores de entrega
+  const deliveryMarkersRef = useRef<any[]>([]);
+  const storeMarkerRef = useRef<any>(null);
 
   const storeLocation = [
     {id: 0, driver:'Loja', status:'Ponto Saida', eta: '0 min', location: [-49.38726407097774, -20.807881179340534], color: '#45B7D1' },
@@ -92,19 +98,135 @@ const DeliveryMap = () => {
     );
   };
 
+  // Função para limpar apenas os marcadores de entrega (não o customizado)
+  const clearDeliveryMarkers = () => {
+    deliveryMarkersRef.current.forEach(marker => {
+      marker.remove();
+    });
+    deliveryMarkersRef.current = [];
+    
+    if (storeMarkerRef.current) {
+      storeMarkerRef.current.remove();
+      storeMarkerRef.current = null;
+    }
+  };
+
+  // Função para criar os marcadores de entrega
+  const createDeliveryMarkers = (deliveriesToShow: any[]) => {
+    if (!mapboxglRef.current) return;
+    
+    const mapboxgl = mapboxglRef.current;
+    
+    // Adicionar marcadores para cada ponto de entrega
+    deliveriesToShow.forEach((delivery) => {
+      const el = document.createElement('div');
+      el.className = 'delivery-marker';
+      el.innerHTML = `
+        <div class="w-8 h-8 rounded-full border-2 border-white shadow-lg flex items-center justify-center animate-pulse-delivery"
+             style="background-color: ${delivery.color}">
+          <svg class="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20">
+            <path d="M8 16.5a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0zM15 16.5a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0z"/>
+            <path d="M3 4a1 1 0 00-1 1v10a1 1 0 001 1h1.05a2.5 2.5 0 014.9 0H10a1 1 0 001-1V5a1 1 0 00-1-1H3zM14 7a1 1 0 00-1 1v6.05A2.5 2.5 0 0115.95 16H17a1 1 0 001-1V8a1 1 0 00-1-1h-3z"/>
+          </svg>
+        </div>
+      `;
+
+      const marker = new mapboxgl.Marker(el)
+        .setLngLat(delivery.location)
+        .setPopup(
+          new mapboxgl.Popup({
+            offset: 25,
+            closeButton: false,
+            closeOnClick: false,
+            maxWidth: 'none'
+          })
+            .setHTML(`
+              <div id="popup-${delivery.id}">
+                ${ReactDOMServer.renderToString(
+                  <MapMarkerPopup
+                    driver={delivery.driver}
+                    client={delivery.client}
+                    status={delivery.status}
+                    eta={delivery.eta}
+                    color={delivery.color}
+                  />
+                )}
+              </div>
+            `)
+        )
+        .addTo(map.current);
+
+      // Adicionar eventos de hover
+      el.addEventListener('mouseenter', () => {
+        marker.getPopup().addTo(map.current);
+      });
+
+      el.addEventListener('mouseleave', () => {
+        marker.getPopup().remove();
+      });
+
+      // Adicionar à lista de marcadores
+      deliveryMarkersRef.current.push(marker);
+    });
+
+    // Adicionar marcador para a loja
+    const pinStore = document.createElement('div');
+    pinStore.className = 'delivery-marker';
+    pinStore.innerHTML = `
+        <div class="w-10 h-10 rounded-full border-2 border-white shadow-lg flex items-center justify-center animate-pulse-delivery"
+             style="background-color: ${storeLocation[0].color}">
+          <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/>
+          </svg>
+        </div>
+      `;
+
+    storeMarkerRef.current = new mapboxgl.Marker(pinStore)
+      .setLngLat(storeLocation[0].location)
+      .setPopup(
+        new mapboxgl.Popup({
+          offset: 25,
+          closeButton: false,
+          closeOnClick: false,
+          maxWidth: 'none'
+        })
+          .setHTML(`
+            <div id="popup-store">
+              ${ReactDOMServer.renderToString(
+                <MapMarkerPopup
+                  driver={storeLocation[0].driver}
+                  client="Loja Central"
+                  status={storeLocation[0].status}
+                  eta={storeLocation[0].eta}
+                  color={storeLocation[0].color}
+                />
+              )}
+            </div>
+          `)
+      )
+      .addTo(map.current);
+
+    // Adicionar eventos de hover para o marcador da loja
+    pinStore.addEventListener('mouseenter', () => {
+      storeMarkerRef.current?.getPopup().addTo(map.current);
+    });
+
+    pinStore.addEventListener('mouseleave', () => {
+      storeMarkerRef.current?.getPopup().remove();
+    });
+  };
+
   const initializeMap = async () => {
     if (!mapContainer.current || !mapboxToken) return;
     try {
       const mapboxgl = (await import('mapbox-gl')).default;
       await import('mapbox-gl/dist/mapbox-gl.css');
       mapboxgl.accessToken = mapboxToken;
-      
+
+      mapboxglRef.current = mapboxgl;
       map.current = new mapboxgl.Map({
         container: mapContainer.current,
         style: 'mapbox://styles/mapbox/light-v11',
-        // style: 'mapbox://styles/mapbox/streets-v12',
-        // style: 'mapbox://styles/mapbox/standard',
-        // style: 'mapbox://styles/mapbox/dark-v11',
         center: storeLocation[0].location,
         zoom: 13,
       });
@@ -112,150 +234,70 @@ const DeliveryMap = () => {
       map.current.addControl(new mapboxgl.NavigationControl(), 'top-right');
 
       map.current.on('load', async () => {
-        // Filtrar entregas com base no driver selecionado
-        const filteredDeliveries = selectedDriver
-          ? activeDeliveries.filter(delivery => delivery.driver === selectedDriver)
-          : activeDeliveries;
-
-        // Agrupar entregas por entregador usando Map
-        const deliveriesByDriver = filteredDeliveries.reduce((map, delivery) => {
-          const deliveries = map.get(delivery.driver) || [];
-          deliveries.push(delivery);
-          map.set(delivery.driver, deliveries);
-          return map;
-        }, new Map());
-
-        // Criar rotas para cada entregador
-        for (const [driver, deliveries] of deliveriesByDriver) {
-          // Rota inicial: da loja até primeira entrega
-          await createRoute(
-            storeLocation[0].location,
-            deliveries[0].location,
-            selectedDriver ? deliveries[0].color : '#b3b3b3',
-            `route-${driver.toLowerCase().replace(' ', '-')}-start`
-          );
-
-          // Rotas entre as entregas
-          for (let i = 0; i < deliveries.length - 1; i++) {
-            const start = deliveries[i].location;
-            const end = deliveries[i + 1].location;
-            await createRoute(
-              start,
-              end,
-              selectedDriver ? deliveries[i].color : '#b3b3b3',
-              `route-${driver.toLowerCase().replace(' ', '-')}-${i}`
-            );
-          }
-
-          // Rota final: da última entrega até a loja
-          await createRoute(
-            deliveries[deliveries.length - 1].location,
-            storeLocation[0].location,
-            selectedDriver ? deliveries[0].color : '#b3b3b3',
-            `route-${driver.toLowerCase().replace(' ', '-')}-end`
-          );
-        }
-
-        // Adicionar marcadores para cada ponto
-        const markersToShow = selectedDriver ? filteredDeliveries : activeDeliveries;
-        markersToShow.forEach((delivery) => {
-          const el = document.createElement('div');
-          el.className = 'delivery-marker';
-          el.innerHTML = `
-            <div class="w-8 h-8 rounded-full border-2 border-white shadow-lg flex items-center justify-center animate-pulse-delivery"
-                 style="background-color: ${delivery.color}">
-              <svg class="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20">
-                <path d="M8 16.5a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0zM15 16.5a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0z"/>
-                <path d="M3 4a1 1 0 00-1 1v10a1 1 0 001 1h1.05a2.5 2.5 0 014.9 0H10a1 1 0 001-1V5a1 1 0 00-1-1H3zM14 7a1 1 0 00-1 1v6.05A2.5 2.5 0 0115.95 16H17a1 1 0 001-1V8a1 1 0 00-1-1h-3z"/>
-              </svg>
-            </div>
-          `;
-
-          const marker = new mapboxgl.Marker(el)
-            .setLngLat(delivery.location)
-            .setPopup(
-              new mapboxgl.Popup({
-                offset: 25,
-                closeButton: false,
-                closeOnClick: false,
-                maxWidth: 'none'
-              })
-                .setHTML(`
-                  <div id="popup-${delivery.id}">
-                    ${ReactDOMServer.renderToString(
-                      <MapMarkerPopup
-                        driver={delivery.driver}
-                        client={delivery.client}
-                        status={delivery.status}
-                        eta={delivery.eta}
-                        color={delivery.color}
-                      />
-                    )}
-                  </div>
-                `)
-            )
-            .addTo(map.current);
-
-          // Adicionar eventos de hover
-          el.addEventListener('mouseenter', () => {
-            marker.getPopup().addTo(map.current);
-          });
-
-          el.addEventListener('mouseleave', () => {
-            marker.getPopup().remove();
-          });
-        });
-
-        // Adicionar marcador para a loja
-        const pinStore = document.createElement('div');
-        pinStore.className = 'delivery-marker';
-        pinStore.innerHTML = `
-            <div class="w-10 h-10 rounded-full border-2 border-white shadow-lg flex items-center justify-center animate-pulse-delivery"
-                 style="background-color: ${storeLocation[0].color}">
-              <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/>
-              </svg>
-            </div>
-          `;
-
-          const storeMarker = new mapboxgl.Marker(pinStore)
-            .setLngLat(storeLocation[0].location)
-            .setPopup(
-              new mapboxgl.Popup({
-                offset: 25,
-                closeButton: false,
-                closeOnClick: false,
-                maxWidth: 'none'
-              })
-                .setHTML(`
-                  <div id="popup-store">
-                    ${ReactDOMServer.renderToString(
-                      <MapMarkerPopup
-                        driver={storeLocation[0].driver}
-                        client="Loja Central"
-                        status={storeLocation[0].status}
-                        eta={storeLocation[0].eta}
-                        color={storeLocation[0].color}
-                      />
-                    )}
-                  </div>
-                `)
-            )
-            .addTo(map.current);
-
-          // Adicionar eventos de hover para o marcador da loja
-          pinStore.addEventListener('mouseenter', () => {
-            storeMarker.getPopup().addTo(map.current);
-          });
-
-          pinStore.addEventListener('mouseleave', () => {
-            storeMarker.getPopup().remove();
-          });
-
+        await updateMapContent();
       });
     } catch (error) {
       console.error('Error initializing map:', error);
     }
+  };
+
+  // Nova função para atualizar o conteúdo do mapa
+  const updateMapContent = async () => {
+    if (!map.current || !mapboxglRef.current) return;
+
+    // Limpar rotas existentes
+    clearExistingRoutes();
+    
+    // Limpar marcadores de entrega existentes (mas manter o customizado)
+    clearDeliveryMarkers();
+
+    // Filtrar entregas com base no driver selecionado
+    const filteredDeliveries = selectedDriver
+      ? activeDeliveries.filter(delivery => delivery.driver === selectedDriver)
+      : activeDeliveries;
+
+    // Agrupar entregas por entregador usando Map
+    const deliveriesByDriver = filteredDeliveries.reduce((map, delivery) => {
+      const deliveries = map.get(delivery.driver) || [];
+      deliveries.push(delivery);
+      map.set(delivery.driver, deliveries);
+      return map;
+    }, new Map());
+
+    // Criar rotas para cada entregador
+    for (const [driver, deliveries] of deliveriesByDriver) {
+      // Rota inicial: da loja até primeira entrega
+      await createRoute(
+        storeLocation[0].location,
+        deliveries[0].location,
+        selectedDriver ? deliveries[0].color : '#b3b3b3',
+        `route-${driver.toLowerCase().replace(' ', '-')}-start`
+      );
+
+      // Rotas entre as entregas
+      for (let i = 0; i < deliveries.length - 1; i++) {
+        const start = deliveries[i].location;
+        const end = deliveries[i + 1].location;
+        await createRoute(
+          start,
+          end,
+          selectedDriver ? deliveries[i].color : '#b3b3b3',
+          `route-${driver.toLowerCase().replace(' ', '-')}-${i}`
+        );
+      }
+
+      // Rota final: da última entrega até a loja
+      await createRoute(
+        deliveries[deliveries.length - 1].location,
+        storeLocation[0].location,
+        selectedDriver ? deliveries[0].color : '#b3b3b3',
+        `route-${driver.toLowerCase().replace(' ', '-')}-end`
+      );
+    }
+
+    // Criar os marcadores de entrega
+    const markersToShow = selectedDriver ? filteredDeliveries : activeDeliveries;
+    createDeliveryMarkers(markersToShow);
   };
 
   const clearExistingRoutes = () => {
@@ -278,61 +320,101 @@ const DeliveryMap = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // UseEffect para quando o driver selecionado muda
   useEffect(() => {
-    if (map.current) {
-      clearExistingRoutes();
-      map.current.once('idle', async () => {
-        // Filtrar entregas com base no driver selecionado
-        const filteredDeliveries = selectedDriver
-          ? activeDeliveries.filter(delivery => delivery.driver === selectedDriver)
-          : activeDeliveries;
-
-        // Agrupar entregas por entregador usando Map
-        const deliveriesByDriver = filteredDeliveries.reduce((map, delivery) => {
-          const deliveries = map.get(delivery.driver) || [];
-          deliveries.push(delivery);
-          map.set(delivery.driver, deliveries);
-          return map;
-        }, new Map());
-
-        // Criar rotas para cada entregador
-        for (const [driver, deliveries] of deliveriesByDriver) {
-          // Rota inicial: da loja até primeira entrega
-          await createRoute(
-            storeLocation[0].location,
-            deliveries[0].location,
-            selectedDriver ? deliveries[0].color : '#b3b3b3',
-            `route-${driver.toLowerCase().replace(' ', '-')}-start`
-          );
-
-          // Rotas entre as entregas
-          for (let i = 0; i < deliveries.length - 1; i++) {
-            const start = deliveries[i].location;
-            const end = deliveries[i + 1].location;
-            await createRoute(
-              start,
-              end,
-              selectedDriver ? deliveries[i].color : '#b3b3b3',
-              `route-${driver.toLowerCase().replace(' ', '-')}-${i}`
-            );
-          }
-
-          // Rota final: da última entrega até a loja
-          await createRoute(
-            deliveries[deliveries.length - 1].location,
-            storeLocation[0].location,
-            selectedDriver ? deliveries[0].color : '#b3b3b3',
-            `route-${driver.toLowerCase().replace(' ', '-')}-end`
-          );
-        }
-      });
+    if (map.current && map.current.isStyleLoaded()) {
+      updateMapContent();
     }
   }, [selectedDriver]);
+
+  // UseEffect para o marcador customizado
+  useEffect(() => {
+    const handleAddCustomMarker = (location: { lat: number; lng: number }) => {
+      console.log('Adicionando marcador customizado:', location);
+      if (!mapboxglRef.current) {
+        console.warn('mapboxgl ainda não foi carregado');
+        return;
+      }
+
+      // Remove marcador anterior se existir
+      if (customMarkerRef.current) {
+        customMarkerRef.current.remove();
+      }
+
+      const mapboxgl = mapboxglRef.current;
+      
+      // Cria o elemento do marcador
+      const el = document.createElement('div');
+      el.className = 'delivery-marker custom-marker'; // Adiciona classe para identificar
+      el.innerHTML = `
+        <div class="w-8 h-8 rounded-full border-2 border-white shadow-lg flex items-center justify-center animate-pulse-delivery" 
+             style="background-color: #FF9800">
+          <svg class="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20">
+            <path d="M8 16.5a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0zM15 16.5a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0z"/>
+            <path d="M3 4a1 1 0 00-1 1v10a1 1 0 001 1h1.05a2.5 2.5 0 014.9 0H10a1 1 0 001-1V5a1 1 0 00-1-1H3zM14 7a1 1 0 00-1 1v6.05A2.5 2.5 0 0115.95 16H17a1 1 0 001-1V8a1 1 0 00-1-1h-3z"/>
+          </svg>
+        </div>
+      `;
+
+      // Cria o marcador
+      customMarkerRef.current = new mapboxgl.Marker(el)
+        .setLngLat([location.lng, location.lat])
+        .setPopup(
+          new mapboxgl.Popup({
+            offset: 25,
+            closeButton: false,
+            closeOnClick: false,
+            maxWidth: 'none'
+          }).setHTML(
+            `<div class="p-2 bg-white rounded shadow">
+              <p class="text-sm font-medium">Nova Entrega</p>
+              <p class="text-xs text-gray-600">Localização selecionada</p>
+             </div>`
+          )
+        )
+        .addTo(map.current);
+
+      // Adiciona eventos de hover
+      el.addEventListener('mouseenter', () => {
+        if (customMarkerRef.current) {
+          customMarkerRef.current.getPopup().addTo(map.current);
+        }
+      });
+
+      el.addEventListener('mouseleave', () => {
+        if (customMarkerRef.current) {
+          customMarkerRef.current.getPopup().remove();
+        }
+      });
+
+      // Opcional: mover o mapa para mostrar o novo marcador
+      map.current.flyTo({
+        center: [location.lng, location.lat],
+        zoom: 15,
+        duration: 1000
+      });
+    };
+
+    // Registra a função no contexto
+    if (setAddCustomMarker) {
+      setAddCustomMarker(handleAddCustomMarker);
+    }
+
+    // Cleanup function
+    return () => {
+      // Não remover o marcador customizado no cleanup a menos que seja explicitamente necessário
+    };
+  }, [setAddCustomMarker]);
 
   return (
     <div className="h-full relative">
       {/* Map Container */}
       <div ref={mapContainer} className="w-full h-full" />
+      {/* Barra de endereço, aparece por cima do mapa */}
+      <AddressBar
+        isVisible={isAddressBarVisible}
+        onClose={() => setAddressBarVisible(false)}
+      />
       {/* Overlay Controls */}
       <div className="absolute top-4 left-4 right-4 flex justify-between items-start z-10">
         {/* Live Stats */}

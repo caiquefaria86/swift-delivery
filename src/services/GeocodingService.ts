@@ -12,7 +12,7 @@ class GeocodingService {
     try {
       const response = await axios.get(url);
       if (response.data.status === 'OK') {
-        return response.data.results; // Retorna todos os resultados
+        return response.data.results;
       } else {
         throw new Error(response.data.error_message || 'Geocoding failed');
       }
