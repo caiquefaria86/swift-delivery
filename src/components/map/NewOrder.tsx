@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
+import { getRouteDistance } from '@/services/DistanceService';
 
 interface NewOrderProps {
   isOpen: boolean;
@@ -14,21 +15,50 @@ export const NewOrder: React.FC<NewOrderProps> = ({ isOpen, onClose, selectedAdd
   const [isPaid, setIsPaid] = useState(false);
   const [amount, setAmount] = useState('');
   const [complemention, setComplemention] = useState('');
+  const [distance, setDistance] = useState<number | null>(null);
+  const [eta, setEta] = useState<number>(0);
+  const [totalTime, setTotalTime] = useState<number>(0);
+  const storeLocation = [-49.38726407097774, -20.807881179340534];
 
-  const handleSubmit = (e: React.FormEvent) => {
+  useEffect(() => {
+    const calculateDistanceAndEta = async () => {
+      if (position.lat && position.lng) {
+        const calculatedDistance = await getRouteDistance(storeLocation, [position.lng, position.lat]);
+        setDistance(calculatedDistance);
+
+        let calculatedEta = 0;
+        let totalTimer = 0;
+        if (calculatedDistance !== null) {
+          const averageSpeedKmH = 30;
+          const timeInHours = calculatedDistance / averageSpeedKmH;
+          const timeInMinutes = Math.round(timeInHours * 60);
+          calculatedEta = timeInMinutes;
+          totalTimer = (timeInMinutes * 2) + 5;
+        }
+        setTotalTime(totalTimer)
+        setEta(calculatedEta);
+      }
+    };
+    calculateDistanceAndEta();
+  }, [position, selectedAddress]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const newOrder = {
       id: Date.now(), // Gerar um ID único
       client: clientName,
-      driver: '',
+      driver: 'Aguardando',
       status: 'Pendente',
       eta: 'Aguardando',
       location: [position.lng, position.lat],
       color: '#FFD700', // Cor para novos pedidos
     };
     onSave(newOrder);
+    onSave(newOrder);
     onClose();
   };
+
+  
 
   return (
     <motion.div
@@ -91,6 +121,21 @@ export const NewOrder: React.FC<NewOrderProps> = ({ isOpen, onClose, selectedAdd
           <div className="mb-4">
             <label className="block text-sm font-medium mb-1">Endereço</label>
             <p className="text-xs">{selectedAddress}, {position.lat}, {position.lng}</p>
+          </div>
+
+          <div className="mb-4">
+            <label className="block text-sm font-medium mb-1">Distancia (Loja ~ Distino Final)</label>
+            <p className="text-xs">{distance !== null ? `${distance.toFixed(2)} km` : 'Calculando...'}</p>
+          </div>
+
+          <div className="mb-4">
+            <label className="block text-sm font-medium mb-1">Tempo Estimado (ETA)</label>
+            <p className="text-xs">{eta > 0 ? `${eta} minutos` : 'Calculando...'}</p>
+          </div>
+
+          <div className="mb-4">
+            <label className="block text-sm font-medium mb-1">Tempo Total Estimado - Ida e volta</label>
+            <p className="text-xs">{eta > 0 ? `${totalTime} minutos` : 'Calculando...'}</p>
           </div>
           
           <div className="mt-auto flex space-x-2">

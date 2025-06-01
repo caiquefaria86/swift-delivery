@@ -38,14 +38,14 @@ const DeliveryMap = () => {
     const newOrderCoords = newOrder.location;
     const distance = await getRouteDistance(storeCoords, newOrderCoords);
     
-    let eta = 'N/A';
+    let eta = 0;
     if (distance !== null) {
       // Assuming an average speed of 30 km/h for delivery
       const averageSpeedKmH = 30;
       console.log(distance);
       const timeInHours = distance / averageSpeedKmH;
       const timeInMinutes = Math.round(timeInHours * 60);
-      eta = `${timeInMinutes} min`;
+      eta = timeInMinutes;
     }
 
     const orderWithDistance = { ...newOrder, distance, eta };
@@ -146,12 +146,12 @@ const DeliveryMap = () => {
       const deliveryCoords = delivery.location;
       const distance = await getRouteDistance(storeCoords, deliveryCoords);
 
-      let eta = 'N/A';
+      let eta = 0;
       if (distance !== null) {
         const averageSpeedKmH = 30;
         const timeInHours = distance / averageSpeedKmH;
         const timeInMinutes = Math.round(timeInHours * 60);
-        eta = `${timeInMinutes} min`;
+        eta = timeInMinutes;
       }
       const deliveryWithEta = { ...delivery, eta };
       const el = document.createElement('div');
@@ -182,7 +182,7 @@ const DeliveryMap = () => {
                     driver={delivery.driver}
                     client={delivery.client}
                     status={delivery.status}
-                    eta={deliveryWithEta.eta}
+                    eta={deliveryWithEta.eta + ' min'}
                     color={delivery.color}
                   />
                 )}
@@ -232,7 +232,7 @@ const DeliveryMap = () => {
                   driver={storeLocation[0].driver}
                   client="Loja Central"
                   status={storeLocation[0].status}
-                  eta={storeLocation[0].eta}
+                  eta={storeLocation[0].eta+ ' min'}
                   color={storeLocation[0].color}
                 />
               )}
@@ -285,12 +285,12 @@ const DeliveryMap = () => {
           const deliveryCoords = delivery.location;
           const distance = await getRouteDistance(storeCoords, deliveryCoords);
 
-          let eta = 'N/A';
+          let eta = 0;
           if (distance !== null) {
             const averageSpeedKmH = 30;
             const timeInHours = distance / averageSpeedKmH;
             const timeInMinutes = Math.round(timeInHours * 60);
-            eta = `${timeInMinutes} min`;
+            eta = timeInMinutes;
           }
           return { ...delivery, eta };
         }));
