@@ -20,7 +20,7 @@ export const NewOrder: React.FC<NewOrderProps> = ({ isOpen, onClose, selectedAdd
     const newOrder = {
       id: Date.now(), // Gerar um ID único
       client: clientName,
-      driver: 'Aguardando',
+      driver: '',
       status: 'Pendente',
       eta: 'Aguardando',
       location: [position.lng, position.lat],

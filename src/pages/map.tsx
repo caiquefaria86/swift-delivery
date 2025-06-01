@@ -7,6 +7,7 @@ import MapMarkerPopup from '@/components/map/MapMarkerPopup';
 import BottomPanel from '@/components/map/BottomPanel';
 import AddressBar from '@/components/map/AddressBar';
 import { NewOrder } from '@/components/map/NewOrder';
+import { getRouteDistance } from '@/services/DistanceService';
 
 const DeliveryMap = () => {
   const { selectedDriver, isAddressBarVisible, setAddressBarVisible, setAddCustomMarker } = useDelivery();
@@ -22,23 +23,34 @@ const DeliveryMap = () => {
   const [selectedAddress, setSelectedAddress] = useState('');
   const [selectedPosition, setSelectedPosition] = useState<{ lat: number; lng: number }>({ lat: 0, lng: 0 });
   const [isBottomPanelExpanded, setIsBottomPanelExpanded] = useState(true);
-  const [activeDeliveries, setActiveDeliveries] = useState([
-    { id: 1, client:"Leandro", driver: "Alex Chen", status: "Em Transito", eta: "5 min", location: [-49.410278488437065, -20.7933523086532], color: '#FF6B6B' },
-    { id: 2, client:"Mauro", driver: "Alex Chen", status: "Em Rota", eta: "10 min", location: [-49.407675040202356, -20.77037424404696], color: '#4ECDC4' },
-    { id: 3, client:"Oruam", driver: "Alex Chen", status: "Em Rota", eta: "18 min", location: [-49.388828, -20.788155], color: '#45B7D1' },
-    { id: 4, client:"Jorge", driver: "Alex Chen", status: "Em Rota", eta: "25 min", location: [-49.36945370333552, -20.81306787830816], color: '#d9d501' },
-    { id: 5, client:"Julio", driver: "Sarah Kim", status: "Em Rota", eta: "25 min", location: [-49.35817658103226, -20.791771682116924], color: '#0b3e37' },
-    { id: 7, client:"Gertrudes", driver: "Sarah Kim", status: "Em Rota", eta: "25 min", location: [-49.35233594139471, -20.83405322301398], color: '#ff0000' },
-    { id: 6, client:"Marinalva", driver: "Sarah Kim", status: "Em Rota", eta: "25 min", location: [-49.37525568020509, -20.821538909299814], color: '#ff19a5' },
-    { id: 8, client:"Josilene", driver: "Mike Johnson", status: "Em Rota", eta: "25 min", location: [-49.414923847625154, -20.832798615225524], color: '#ff19a5' },
-  ]);
+
+  const [activeDeliveries, setActiveDeliveries] = useState<any[]>([]);
+
+
 
   const storeLocation = [
     {id: 0, driver:'Loja', status:'Ponto Saida', eta: '0 min', location: [-49.38726407097774, -20.807881179340534], color: '#45B7D1' },
   ];
 
-  const handleSaveNewOrder = (newOrder: any) => {
-    setActiveDeliveries((prevDeliveries) => [...prevDeliveries, newOrder]);
+  const handleSaveNewOrder = async (newOrder: any) => {
+    // Calculate distance for the new order
+    const storeCoords = storeLocation[0].location;
+    const newOrderCoords = newOrder.location;
+    const distance = await getRouteDistance(storeCoords, newOrderCoords);
+    
+    let eta = 'N/A';
+    if (distance !== null) {
+      // Assuming an average speed of 30 km/h for delivery
+      const averageSpeedKmH = 30;
+      console.log(distance);
+      const timeInHours = distance / averageSpeedKmH;
+      const timeInMinutes = Math.round(timeInHours * 60);
+      eta = `${timeInMinutes} min`;
+    }
+
+    const orderWithDistance = { ...newOrder, distance, eta };
+
+    setActiveDeliveries((prevDeliveries) => [...prevDeliveries, orderWithDistance]);
     setIsBottomPanelExpanded(true);
     console.log(activeDeliveries);
     customMarkerRef.current.remove();
@@ -123,13 +135,25 @@ const DeliveryMap = () => {
   };
 
   // Função para criar os marcadores de entrega
-  const createDeliveryMarkers = (deliveriesToShow: any[]) => {
+  const createDeliveryMarkers = async (deliveriesToShow: any[]) => {
     if (!mapboxglRef.current) return;
     
     const mapboxgl = mapboxglRef.current;
     
     // Adicionar marcadores para cada ponto de entrega
-    deliveriesToShow.forEach((delivery) => {
+    for (const delivery of deliveriesToShow) {
+      const storeCoords = storeLocation[0].location;
+      const deliveryCoords = delivery.location;
+      const distance = await getRouteDistance(storeCoords, deliveryCoords);
+
+      let eta = 'N/A';
+      if (distance !== null) {
+        const averageSpeedKmH = 30;
+        const timeInHours = distance / averageSpeedKmH;
+        const timeInMinutes = Math.round(timeInHours * 60);
+        eta = `${timeInMinutes} min`;
+      }
+      const deliveryWithEta = { ...delivery, eta };
       const el = document.createElement('div');
       el.className = 'delivery-marker';
       el.innerHTML = `
@@ -141,7 +165,7 @@ const DeliveryMap = () => {
           </svg>
         </div>
       `;
-
+      
       const marker = new mapboxgl.Marker(el)
         .setLngLat(delivery.location)
         .setPopup(
@@ -158,7 +182,7 @@ const DeliveryMap = () => {
                     driver={delivery.driver}
                     client={delivery.client}
                     status={delivery.status}
-                    eta={delivery.eta}
+                    eta={deliveryWithEta.eta}
                     color={delivery.color}
                   />
                 )}
@@ -178,7 +202,7 @@ const DeliveryMap = () => {
 
       // Adicionar à lista de marcadores
       deliveryMarkersRef.current.push(marker);
-    });
+    }
 
     // Adicionar marcador para a loja
     const pinStore = document.createElement('div');
@@ -245,6 +269,33 @@ const DeliveryMap = () => {
       map.current.addControl(new mapboxgl.NavigationControl(), 'top-right');
 
       map.current.on('load', async () => {
+        const initialDeliveries = [
+          { id: 1, client:"Leandro", driver: "Alex Chen", status: "Em Transito", location: [-49.410278488437065, -20.7933523086532], color: '#FF6B6B' },
+          { id: 2, client:"Mauro", driver: "Alex Chen", status: "Em Rota", location: [-49.407675040202356, -20.77037424404696], color: '#4ECDC4' },
+          { id: 3, client:"Oruam", driver: "Alex Chen", status: "Em Rota", location: [-49.388828, -20.788155], color: '#45B7D1' },
+          { id: 4, client:"Jorge", driver: "Alex Chen", status: "Em Rota", location: [-49.36945370333552, -20.81306787830816], color: '#d9d501' },
+          { id: 5, client:"Julio", driver: "Sarah Kim", status: "Em Rota", location: [-49.35817658103226, -20.791771682116924], color: '#0b3e37' },
+          { id: 7, client:"Gertrudes", driver: "Sarah Kim", status: "Em Rota", location: [-49.35233594139471, -20.83405322301398], color: '#ff0000' },
+          { id: 6, client:"Marinalva", driver: "Sarah Kim", status: "Em Rota", location: [-49.37525568020509, -20.821538909299814], color: '#ff19a5' },
+          { id: 8, client:"Josilene", driver: "Mike Johnson", status: "Em Rota", location: [-49.414923847625154, -20.832798615225524], color: '#ff19a5' }
+        ];
+
+        const deliveriesWithEta = await Promise.all(initialDeliveries.map(async (delivery) => {
+          const storeCoords = storeLocation[0].location;
+          const deliveryCoords = delivery.location;
+          const distance = await getRouteDistance(storeCoords, deliveryCoords);
+
+          let eta = 'N/A';
+          if (distance !== null) {
+            const averageSpeedKmH = 30;
+            const timeInHours = distance / averageSpeedKmH;
+            const timeInMinutes = Math.round(timeInHours * 60);
+            eta = `${timeInMinutes} min`;
+          }
+          return { ...delivery, eta };
+        }));
+
+        setActiveDeliveries(deliveriesWithEta);
         await updateMapContent();
       });
     } catch (error) {
@@ -292,7 +343,7 @@ const DeliveryMap = () => {
         await createRoute(
           start,
           end,
-          selectedDriver ? deliveries[i].color : '#b3b3b3',
+          selectedDriver ? deliveries[i + 1].color : '#b3b3b3',
           `route-${driver.toLowerCase().replace(' ', '-')}-${i}`
         );
       }
@@ -301,14 +352,14 @@ const DeliveryMap = () => {
       await createRoute(
         deliveries[deliveries.length - 1].location,
         storeLocation[0].location,
-        selectedDriver ? deliveries[0].color : '#b3b3b3',
+        '#b3b3b3',
         `route-${driver.toLowerCase().replace(' ', '-')}-end`
       );
     }
 
     // Criar os marcadores de entrega
     const markersToShow = selectedDriver ? filteredDeliveries : activeDeliveries;
-    createDeliveryMarkers(markersToShow);
+    await createDeliveryMarkers(markersToShow);
   };
 
   const clearExistingRoutes = () => {
@@ -340,7 +391,7 @@ const DeliveryMap = () => {
     if (map.current && map.current.isStyleLoaded()) {
       updateMapContent();
     }
-  }, [selectedDriver]);
+  }, [activeDeliveries, selectedDriver]);
 
 
   // UseEffect para o marcador customizado
